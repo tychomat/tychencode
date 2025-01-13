@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Loop through each file in tychencode.txt, process it, and then check the output
+xargs -a tychencode.txt -I{} -d'\n' sh -c '
+  # Variables for the original and encoded filenames
+  original="$1"
+  encoded="${original%.*}_tychencode.mkv"
+  log_file="encode_$(basename "$original").log"
+
+  # Run ffmpeg in the background and output to a temporary log file
+  nice -n 19 ffmpeg -i "$original" -map 0:a? -map 0:s? -map 0:v -c:v libx265 -preset medium \
+    -x265-params "crf=18" -x265-params pools=2 -c:a aac -b:a 160k -vf "yadif" \
+    -b:v 1200k -maxrate 2400k -bufsize 1800k -c:s copy "$encoded" > "$log_file" 2>&1
+
+  # Check if the encoded file was created
+  if [ -f "$encoded" ]; then
+    # Get the durations of the original and encoded files
+    original_duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$original")
+    encoded_duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$encoded")
+
+    # Round the durations to the nearest second for comparison
+    original_duration=${original_duration%.*}
+    encoded_duration=${encoded_duration%.*}
+
+    # Check if the durations match
+    if [ "$original_duration" -eq "$encoded_duration" ]; then
+      # Trash the original file, rename the encoded file, and log the success
+      trash "$original"
+      mv "$encoded" "${encoded%_tychencode.mkv}.mkv"
+      echo "$original" >> encoded.txt
+      sed -i "\|$original|d" tychencode.txt
+    else
+      # Duration mismatch; log the failure
+      echo "$original" >> failed_to_encode.txt
+    fi
+  else
+    # Log failure if the encoded file was not created
+    echo "$original" >> failed_to_encode.txt
+  fi
+
+  # Clean up: trash the log file
+  trash "$log_file"
+' _ {}
+
+# Final cleanup and check if everything was successfully encoded
+if [ ! -s failed_to_encode.txt ]; then                               # If `failed_to_encode.txt` is empty (no failures)                 trash encoded.txt
+  /mnt/data4/Software/curl-discord-cronjob/tychencode_ok   # Run the success script
+else
+  /mnt/data4/Software/curl-discord-cronjob/tychencode_ko   # Run the failure script
+fi
