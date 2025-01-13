@@ -42,8 +42,8 @@ xargs -a tychencode.txt -I{} -d'\n' sh -c '
   trash "$log_file"
 ' _ {}
 
-# Final cleanup and check if everything was successfully encoded
-if [ ! -s failed_to_encode.txt ]; then                               # If `failed_to_encode.txt` is empty (no failures)                 trash encoded.txt
+# Check if everything was successfully encoded
+if [ ! -s failed_to_encode.txt ]; then                     # If `failed_to_encode.txt` is empty (no failures)
   /mnt/data4/Software/curl-discord-cronjob/tychencode_ok   # Run the success script
 else
   /mnt/data4/Software/curl-discord-cronjob/tychencode_ko   # Run the failure script
